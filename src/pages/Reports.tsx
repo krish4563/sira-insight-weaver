@@ -1,81 +1,102 @@
 import { FileText, Download, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
 
+// Mock data - replace with actual API call
+const mockReports = [
+  {
+    id: "1",
+    title: "AI Research Trends Q1 2024",
+    date: "2024-03-15",
+    size: "2.4 MB",
+  },
+  {
+    id: "2",
+    title: "Quantum Computing Analysis",
+    date: "2024-03-10",
+    size: "1.8 MB",
+  },
+  {
+    id: "3",
+    title: "Climate Studies Overview",
+    date: "2024-03-05",
+    size: "3.1 MB",
+  },
+];
+
 export default function Reports() {
-  // This will be populated with actual data from the backend
-  const mockReports = [
-    {
-      id: 1,
-      title: "AI Ethics in Healthcare",
-      date: "2025-01-15",
-      citations: 12,
-      status: "complete",
-    },
-    {
-      id: 2,
-      title: "Quantum Computing Applications",
-      date: "2025-01-14",
-      citations: 8,
-      status: "complete",
-    },
-  ];
+  const handleDownload = (reportId: string) => {
+    toast.success("Download started");
+    // Implement actual download logic
+  };
+
+  const handleView = (reportId: string) => {
+    toast.info("Opening PDF viewer");
+    // Implement actual view logic
+  };
 
   return (
-    <div className="container max-w-6xl py-8 space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold gradient-text">Research Reports</h1>
-        <p className="text-muted-foreground">View and export your generated reports</p>
-      </div>
+    <div className="flex flex-col h-screen">
+      <header className="border-b border-border p-4">
+        <h1 className="text-2xl font-bold gradient-text">Reports</h1>
+        <p className="text-sm text-muted-foreground">
+          View and download your research reports
+        </p>
+      </header>
 
-      {mockReports.length === 0 ? (
-        <Card className="glass-card">
-          <CardContent className="py-12 text-center">
-            <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-            <p className="text-muted-foreground">No reports yet</p>
-            <p className="text-sm text-muted-foreground">
-              Start a research query to generate your first report
-            </p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="grid gap-4">
-          {mockReports.map((report) => (
-            <Card key={report.id} className="glass-card transition-smooth hover:shadow-lg">
-              <CardHeader>
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-xl">{report.title}</CardTitle>
-                    <CardDescription>
-                      Generated on {new Date(report.date).toLocaleDateString()}
-                    </CardDescription>
+      <ScrollArea className="flex-1 p-6">
+        <div className="max-w-4xl mx-auto space-y-4">
+          {mockReports.length === 0 ? (
+            <div className="text-center py-12">
+              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
+              <h2 className="text-xl font-semibold mb-2">No reports yet</h2>
+              <p className="text-muted-foreground">
+                Your generated PDF reports will appear here
+              </p>
+            </div>
+          ) : (
+            mockReports.map((report) => (
+              <Card key={report.id} className="glass-card">
+                <CardHeader>
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <FileText className="h-5 w-5 text-primary" />
+                      </div>
+                      <div>
+                        <CardTitle className="text-lg">{report.title}</CardTitle>
+                        <CardDescription>
+                          {new Date(report.date).toLocaleDateString()} · {report.size}
+                        </CardDescription>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleView(report.id)}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleDownload(report.id)}
+                      >
+                        <Download className="h-4 w-4 mr-1" />
+                        Download
+                      </Button>
+                    </div>
                   </div>
-                  <Badge>{report.status}</Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <p className="text-sm text-muted-foreground">
-                    {report.citations} citations
-                  </p>
-                  <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
-                      <Eye className="h-4 w-4 mr-2" />
-                      View
-                    </Button>
-                    <Button size="sm" onClick={() => toast.info("PDF generation coming soon")}>
-                      <Download className="h-4 w-4 mr-2" />
-                      Download PDF
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                </CardHeader>
+              </Card>
+            ))
+          )}
         </div>
-      )}
+      </ScrollArea>
     </div>
   );
 }

@@ -6,14 +6,21 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "@/components/ChatMessage";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { ResearchResult } from "@/components/ResearchResult";
+import { AutomationControls } from "@/components/AutomationControls";
+import { KnowledgeGraphPreview } from "@/components/KnowledgeGraphPreview";
+import { KnowledgeGraphModal } from "@/components/KnowledgeGraphModal";
+import { QuotaBar } from "@/components/QuotaBar";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import type { ResearchItem } from "@/lib/api";
+import type { ResearchItem, KnowledgeGraph } from "@/lib/api";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
+  showAutomation?: boolean;
+  knowledgeGraph?: KnowledgeGraph;
+  results?: ResearchItem[];
 }
 
 export default function Research() {
@@ -21,7 +28,8 @@ export default function Research() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [researchResults, setResearchResults] = useState<ResearchItem[]>([]);
+  const [currentKG, setCurrentKG] = useState<KnowledgeGraph | null>(null);
+  const [showKGModal, setShowKGModal] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -34,26 +42,33 @@ export default function Research() {
 
     try {
       const result = await apiClient.research(userMessage, user.id);
-      
+
+      // Fetch updated KG
+      const kgData = await apiClient.getKnowledgeGraph();
+      setCurrentKG(kgData);
+
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Found ${result.results.length} research results for "${result.topic}". Results saved to memory and knowledge graph updated.`,
+          content: `I found ${result.results.length} research results on "${result.topic}". Memory and knowledge graph have been updated with these insights.`,
+          showAutomation: true,
+          knowledgeGraph: kgData,
+          results: result.results,
         },
       ]);
-      
-      setResearchResults(result.results);
-      toast.success("Research complete! Memory and KG updated.");
+
+      toast.success("Research complete!");
     } catch (error: any) {
       console.error("Research error:", error);
       toast.error(error.message || "Failed to complete research");
-      
+
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: "I encountered an error while researching. Please make sure the backend API is running and try again.",
+          content:
+            "I encountered an error while researching. Please make sure the backend API is running and try again.",
         },
       ]);
     } finally {
@@ -63,12 +78,7 @@ export default function Research() {
 
   return (
     <div className="flex flex-col h-screen">
-      <header className="border-b border-border p-4">
-        <h1 className="text-2xl font-bold gradient-text">Research Assistant</h1>
-        <p className="text-sm text-muted-foreground">
-          Ask me anything and I'll research it for you
-        </p>
-      </header>
+      <QuotaBar used={45} total={100} />
 
       <ScrollArea className="flex-1 p-6">
         <div className="max-w-4xl mx-auto space-y-6">
@@ -77,7 +87,9 @@ export default function Research() {
               <div className="inline-flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-primary to-accent mb-4">
                 <span className="text-3xl">🔍</span>
               </div>
-              <h2 className="text-xl font-semibold mb-2">Start Your Research</h2>
+              <h2 className="text-xl font-semibold mb-2">
+                What would you like to research?
+              </h2>
               <p className="text-muted-foreground">
                 Enter a topic or question below to begin
               </p>
@@ -85,16 +97,43 @@ export default function Research() {
           )}
 
           {messages.map((message, idx) => (
-            <ChatMessage key={idx} role={message.role} content={message.content} />
+            <div key={idx} className="space-y-4">
+              <ChatMessage role={message.role} content={message.content} />
+
+              {message.results && message.results.length > 0 && (
+                <div className="space-y-3 ml-12">
+                  {message.results.map((item, i) => (
+                    <ResearchResult key={i} item={item} />
+                  ))}
+                </div>
+              )}
+
+              {message.knowledgeGraph && (
+                <div className="ml-12">
+                  <KnowledgeGraphPreview
+                    data={message.knowledgeGraph}
+                    onViewFull={() => {
+                      setCurrentKG(message.knowledgeGraph!);
+                      setShowKGModal(true);
+                    }}
+                  />
+                </div>
+              )}
+
+              {message.showAutomation && user && (
+                <div className="ml-12">
+                  <AutomationControls
+                    topic={messages[idx - 1]?.content || ""}
+                    userId={user.id}
+                  />
+                </div>
+              )}
+            </div>
           ))}
 
-          {isLoading && <TypingIndicator />}
-
-          {researchResults.length > 0 && (
-            <div className="space-y-4 mt-6">
-              {researchResults.map((item, idx) => (
-                <ResearchResult key={idx} item={item} />
-              ))}
+          {isLoading && (
+            <div className="ml-12">
+              <TypingIndicator />
             </div>
           )}
         </div>
@@ -114,6 +153,12 @@ export default function Research() {
           </Button>
         </form>
       </div>
+
+      <KnowledgeGraphModal
+        isOpen={showKGModal}
+        onClose={() => setShowKGModal(false)}
+        data={currentKG}
+      />
     </div>
   );
 }

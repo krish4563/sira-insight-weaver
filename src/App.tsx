@@ -13,11 +13,6 @@ import Research from "./pages/Research";
 import Auth from "./pages/Auth";
 import Profile from "./pages/Profile";
 import Reports from "./pages/Reports";
-import KnowledgeGraph from "./pages/KnowledgeGraph";
-import Scheduler from "./pages/Scheduler";
-import Memory from "./pages/Memory";
-import Quota from "./pages/Quota";
-import Webhooks from "./pages/Webhooks";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -60,61 +55,11 @@ const App = () => (
                 }
               />
               <Route
-                path="/scheduler"
-                element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <Scheduler />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/memory"
-                element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <Memory />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
                 path="/reports"
                 element={
                   <ProtectedRoute>
                     <MainLayout>
                       <Reports />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/knowledge-graph"
-                element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <KnowledgeGraph />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/quota"
-                element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <Quota />
-                    </MainLayout>
-                  </ProtectedRoute>
-                }
-              />
-              <Route
-                path="/webhooks"
-                element={
-                  <ProtectedRoute>
-                    <MainLayout>
-                      <Webhooks />
                     </MainLayout>
                   </ProtectedRoute>
                 }

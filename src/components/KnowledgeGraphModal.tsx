@@ -1,0 +1,96 @@
+import { useEffect, useRef } from "react";
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import cytoscape from "cytoscape";
+import type { KnowledgeGraph } from "@/lib/api";
+
+interface KnowledgeGraphModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  data: KnowledgeGraph | null;
+}
+
+export function KnowledgeGraphModal({
+  isOpen,
+  onClose,
+  data,
+}: KnowledgeGraphModalProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const cyRef = useRef<cytoscape.Core | null>(null);
+
+  useEffect(() => {
+    if (!isOpen || !data || !containerRef.current) return;
+
+    if (cyRef.current) {
+      cyRef.current.destroy();
+    }
+
+    cyRef.current = cytoscape({
+      container: containerRef.current,
+      elements: [...data.nodes, ...data.edges],
+      style: [
+        {
+          selector: "node",
+          style: {
+            "background-color": "hsl(var(--primary))",
+            label: "data(label)",
+            color: "hsl(var(--foreground))",
+            "text-valign": "center",
+            "text-halign": "center",
+            "font-size": "12px",
+            width: 40,
+            height: 40,
+          },
+        },
+        {
+          selector: "edge",
+          style: {
+            width: 2,
+            "line-color": "hsl(var(--muted-foreground))",
+            "target-arrow-color": "hsl(var(--muted-foreground))",
+            "target-arrow-shape": "triangle",
+            "curve-style": "bezier",
+            label: "data(label)",
+            "font-size": "10px",
+            color: "hsl(var(--muted-foreground))",
+          },
+        },
+      ],
+      layout: {
+        name: "cose",
+        animate: true,
+        animationDuration: 500,
+      },
+    });
+
+    return () => {
+      if (cyRef.current) {
+        cyRef.current.destroy();
+        cyRef.current = null;
+      }
+    };
+  }, [isOpen, data]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-card border border-border rounded-lg shadow-lg w-full max-w-5xl h-[80vh] flex flex-col">
+        <div className="flex items-center justify-between p-4 border-b border-border">
+          <div>
+            <h3 className="font-semibold text-lg">Knowledge Graph</h3>
+            {data && (
+              <p className="text-sm text-muted-foreground mt-1">
+                {data.counts.nodes} nodes · {data.counts.edges} connections
+              </p>
+            )}
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+        <div ref={containerRef} className="flex-1 bg-muted/20" />
+      </div>
+    </div>
+  );
+}
