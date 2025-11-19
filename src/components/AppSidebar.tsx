@@ -1,4 +1,4 @@
-import { History, FileText, User, Network, LogOut } from "lucide-react";
+import { History, FileText, User, Network, LogOut, Calendar, Database, BarChart3, Webhook } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -17,8 +17,12 @@ import { Button } from "@/components/ui/button";
 
 const navItems = [
   { title: "Research", url: "/", icon: History },
+  { title: "Scheduler", url: "/scheduler", icon: Calendar },
+  { title: "Memory", url: "/memory", icon: Database },
   { title: "Reports", url: "/reports", icon: FileText },
   { title: "Knowledge Graph", url: "/knowledge-graph", icon: Network },
+  { title: "Quota", url: "/quota", icon: BarChart3 },
+  { title: "Webhooks", url: "/webhooks", icon: Webhook },
   { title: "Profile", url: "/profile", icon: User },
 ];
 

@@ -2,6 +2,7 @@ import { FileText, Download, Eye } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { toast } from "sonner";
 
 export default function Reports() {
   // This will be populated with actual data from the backend
@@ -64,7 +65,7 @@ export default function Reports() {
                       <Eye className="h-4 w-4 mr-2" />
                       View
                     </Button>
-                    <Button size="sm">
+                    <Button size="sm" onClick={() => toast.info("PDF generation coming soon")}>
                       <Download className="h-4 w-4 mr-2" />
                       Download PDF
                     </Button>

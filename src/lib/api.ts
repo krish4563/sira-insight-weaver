@@ -1,56 +1,68 @@
 // Central API configuration for FastAPI backend
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
-export interface FetchResult {
-  count: number;
-  docs: {
-    title: string;
-    abstract: string;
-    url: string;
-    source: string;
-  }[];
-}
-
-export interface SummaryResult {
-  title: string;
-  url: string;
-  bullets: string[];
-  source: string;
-}
-
-export interface CriticResult {
-  credibility: number;
-  reasons: string[];
-}
-
 export interface ResearchItem {
   title: string;
   url: string;
-  bullets: string[];
+  summary: string;
   credibility: number;
-  reasons: string[];
+  provider: string;
 }
 
 export interface PipelineResult {
   topic: string;
-  count: number;
-  items: ResearchItem[];
+  results: ResearchItem[];
+}
+
+export interface HealthStatus {
+  serpapi: string;
+  brave: string;
+  ddg: string;
+  offline: string;
+}
+
+export interface MemoryDoc {
+  title: string;
+  abstract: string;
+  url: string;
+  source: string;
+}
+
+export interface MemorySearchResult {
+  score: number;
+  doc: MemoryDoc;
 }
 
 export interface KnowledgeGraphNode {
-  id: string;
-  type: string;
+  data: {
+    id: string;
+    label: string;
+    type: string;
+  };
 }
 
 export interface KnowledgeGraphEdge {
-  source: string;
-  target: string;
-  relation: string;
+  data: {
+    source: string;
+    target: string;
+    label: string;
+  };
 }
 
 export interface KnowledgeGraph {
   nodes: KnowledgeGraphNode[];
   edges: KnowledgeGraphEdge[];
+  counts: {
+    nodes: number;
+    edges: number;
+  };
+}
+
+export interface ScheduledJob {
+  id: string;
+  topic: string;
+  interval_seconds: number;
+  next_run?: string;
 }
 
 class APIClient {
@@ -92,47 +104,50 @@ class APIClient {
     return this.request<{ ok: boolean }>("/health");
   }
 
-  async fetch(topic: string, maxResults: number = 10) {
-    return this.request<FetchResult>(
-      `/api/fetch?topic=${encodeURIComponent(topic)}&max_results=${maxResults}`
-    );
+  async pipelineHealth() {
+    return this.request<HealthStatus>("/api/pipeline/health");
   }
 
-  async summarize(doc: { title: string; abstract?: string; url: string; source: string }) {
-    return this.request<SummaryResult>("/api/summarize", {
+  async research(topic: string, userId: string) {
+    return this.request<PipelineResult>("/api/pipeline/research", {
       method: "POST",
-      body: JSON.stringify(doc),
+      body: JSON.stringify({ topic, user_id: userId }),
     });
   }
 
-  async critic(doc: { title: string; abstract: string; url: string; source: string }) {
-    return this.request<CriticResult>("/api/critic", {
+  async upsertMemory(userId: string, doc: MemoryDoc) {
+    return this.request<{ ok: boolean; count: number }>("/api/memory/upsert", {
       method: "POST",
-      body: JSON.stringify(doc),
+      body: JSON.stringify({ user_id: userId, ...doc }),
     });
   }
 
-  async research(topic: string, maxResults: number = 10) {
-    return this.request<PipelineResult>(
-      `/api/pipeline/research?topic=${encodeURIComponent(topic)}&max_results=${maxResults}`
-    );
-  }
-
-  async addMemory(doc: { title: string; abstract: string; url: string; source: string }) {
-    return this.request<{ ok: boolean; count: number }>("/api/memory/add", {
-      method: "POST",
-      body: JSON.stringify(doc),
-    });
-  }
-
-  async searchMemory(query: string, k: number = 5) {
-    return this.request<{ score: number; doc: any }[]>(
-      `/api/memory/search?q=${encodeURIComponent(query)}&k=${k}`
+  async searchMemory(userId: string, query: string, k: number = 5) {
+    return this.request<MemorySearchResult[]>(
+      `/api/memory/search?user_id=${userId}&q=${encodeURIComponent(query)}&k=${k}`
     );
   }
 
   async getKnowledgeGraph() {
     return this.request<KnowledgeGraph>("/api/kg");
+  }
+
+  async addScheduledJob(topic: string, userId: string, intervalSeconds: number) {
+    return this.request<{ ok: boolean; job_id: string }>("/api/schedule/add", {
+      method: "POST",
+      body: JSON.stringify({ topic, user_id: userId, interval_seconds: intervalSeconds }),
+    });
+  }
+
+  async cancelScheduledJob(jobId: string) {
+    return this.request<{ ok: boolean }>("/api/schedule/cancel", {
+      method: "POST",
+      body: JSON.stringify({ job_id: jobId }),
+    });
+  }
+
+  async listScheduledJobs() {
+    return this.request<{ jobs: ScheduledJob[] }>("/api/schedule/list");
   }
 }
 

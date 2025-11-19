@@ -7,6 +7,7 @@ import { ChatMessage } from "@/components/ChatMessage";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { ResearchResult } from "@/components/ResearchResult";
 import { apiClient } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import type { ResearchItem } from "@/lib/api";
 
@@ -16,6 +17,7 @@ interface Message {
 }
 
 export default function Research() {
+  const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -23,7 +25,7 @@ export default function Research() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if (!input.trim() || isLoading || !user) return;
 
     const userMessage = input.trim();
     setInput("");
@@ -31,18 +33,18 @@ export default function Research() {
     setIsLoading(true);
 
     try {
-      const result = await apiClient.research(userMessage, 5);
+      const result = await apiClient.research(userMessage, user.id);
       
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `Found ${result.count} research results for "${result.topic}". Here's what I discovered:`,
+          content: `Found ${result.results.length} research results for "${result.topic}". Results saved to memory and knowledge graph updated.`,
         },
       ]);
       
-      setResearchResults(result.items);
-      toast.success("Research complete!");
+      setResearchResults(result.results);
+      toast.success("Research complete! Memory and KG updated.");
     } catch (error: any) {
       console.error("Research error:", error);
       toast.error(error.message || "Failed to complete research");

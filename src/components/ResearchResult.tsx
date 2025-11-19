@@ -1,10 +1,7 @@
-import { ExternalLink, TrendingUp, AlertCircle } from "lucide-react";
+import { ExternalLink, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Button } from "@/components/ui/button";
-import { useState } from "react";
 import type { ResearchItem } from "@/lib/api";
 
 interface ResearchResultProps {
@@ -12,7 +9,6 @@ interface ResearchResultProps {
 }
 
 export function ResearchResult({ item }: ResearchResultProps) {
-  const [isOpen, setIsOpen] = useState(false);
   const credibilityPercentage = Math.round(item.credibility * 100);
 
   return (
@@ -22,6 +18,9 @@ export function ResearchResult({ item }: ResearchResultProps) {
           <div className="flex-1">
             <CardTitle className="text-lg">{item.title}</CardTitle>
             <CardDescription className="flex items-center gap-2 mt-2">
+              <Badge variant="outline" className="text-xs">
+                {item.provider}
+              </Badge>
               <a
                 href={item.url}
                 target="_blank"
@@ -49,31 +48,9 @@ export function ResearchResult({ item }: ResearchResultProps) {
         </div>
 
         <div>
-          <p className="text-sm font-medium mb-2">Key Points:</p>
-          <ul className="space-y-1 list-disc list-inside text-sm text-muted-foreground">
-            {item.bullets.map((bullet, idx) => (
-              <li key={idx}>{bullet}</li>
-            ))}
-          </ul>
+          <p className="text-sm font-medium mb-2">Summary:</p>
+          <p className="text-sm text-muted-foreground">{item.summary}</p>
         </div>
-
-        {item.reasons.length > 0 && (
-          <Collapsible open={isOpen} onOpenChange={setIsOpen}>
-            <CollapsibleTrigger asChild>
-              <Button variant="ghost" size="sm" className="w-full">
-                <AlertCircle className="h-4 w-4 mr-2" />
-                {isOpen ? "Hide" : "Show"} Credibility Analysis
-              </Button>
-            </CollapsibleTrigger>
-            <CollapsibleContent className="mt-2 space-y-1">
-              {item.reasons.map((reason, idx) => (
-                <p key={idx} className="text-sm text-muted-foreground">
-                  • {reason}
-                </p>
-              ))}
-            </CollapsibleContent>
-          </Collapsible>
-        )}
       </CardContent>
     </Card>
   );

@@ -11,6 +11,8 @@ export default function KnowledgeGraph() {
   const containerRef = useRef<HTMLDivElement>(null);
   const [isLoading, setIsLoading] = useState(false);
 
+  const [graphStats, setGraphStats] = useState({ nodes: 0, edges: 0 });
+
   const loadGraph = async () => {
     setIsLoading(true);
     try {
@@ -19,24 +21,14 @@ export default function KnowledgeGraph() {
       if (cyRef.current) {
         cyRef.current.elements().remove();
         
-        // Add nodes
+        // Add nodes - data already in Cytoscape format
         data.nodes.forEach((node) => {
-          cyRef.current?.add({
-            group: "nodes",
-            data: { id: node.id, label: node.id, type: node.type },
-          });
+          cyRef.current?.add({ group: "nodes", ...node });
         });
 
-        // Add edges
+        // Add edges - data already in Cytoscape format
         data.edges.forEach((edge) => {
-          cyRef.current?.add({
-            group: "edges",
-            data: {
-              source: edge.source,
-              target: edge.target,
-              label: edge.relation,
-            },
-          });
+          cyRef.current?.add({ group: "edges", ...edge });
         });
 
         // Run layout
@@ -47,9 +39,11 @@ export default function KnowledgeGraph() {
             animationDuration: 500,
           })
           .run();
+        
+        setGraphStats(data.counts);
       }
       
-      toast.success("Knowledge graph loaded");
+      toast.success(`Knowledge graph loaded: ${data.counts.nodes} nodes, ${data.counts.edges} edges`);
     } catch (error: any) {
       console.error("Failed to load graph:", error);
       toast.error(error.message || "Failed to load knowledge graph");
@@ -108,6 +102,9 @@ export default function KnowledgeGraph() {
           <h1 className="text-3xl font-bold gradient-text">Knowledge Graph</h1>
           <p className="text-muted-foreground">
             Interactive visualization of research entities and relationships
+          </p>
+          <p className="text-sm text-muted-foreground mt-1">
+            {graphStats.nodes} nodes • {graphStats.edges} edges
           </p>
         </div>
         <div className="flex gap-2">

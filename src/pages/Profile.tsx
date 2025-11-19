@@ -3,6 +3,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/contexts/AuthContext";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { Server, Database } from "lucide-react";
 
 export default function Profile() {
   const { user } = useAuth();
@@ -54,21 +56,34 @@ export default function Profile() {
 
       <Card className="glass-card">
         <CardHeader>
-          <CardTitle>API Configuration</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Server className="h-5 w-5" />
+            Backend Configuration
+          </CardTitle>
           <CardDescription>
-            Connect your FastAPI backend for research capabilities
+            API and service endpoints for SIRA
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label>Backend API URL</Label>
-            <Input
-              placeholder="http://localhost:8000"
-              defaultValue={import.meta.env.VITE_API_BASE || ""}
-              disabled
-            />
+            <Badge variant="outline" className="font-mono text-xs">
+              {import.meta.env.VITE_API_BASE || "http://localhost:8000"}
+            </Badge>
             <p className="text-xs text-muted-foreground">
               Configure this in your environment variables (VITE_API_BASE)
+            </p>
+          </div>
+          <div className="space-y-2">
+            <Label className="flex items-center gap-2">
+              <Database className="h-4 w-4" />
+              Pinecone Index
+            </Label>
+            <Badge variant="outline" className="font-mono text-xs">
+              sira-research-memory
+            </Badge>
+            <p className="text-xs text-muted-foreground">
+              Vector database for research memory storage
             </p>
           </div>
         </CardContent>
