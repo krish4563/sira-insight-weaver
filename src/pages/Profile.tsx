@@ -1,14 +1,33 @@
-import { User, Mail, Globe, Database } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState } from "react";
+import { User, Mail, Globe, Database, LogOut } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { toast } from "sonner";
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
+  const navigate = useNavigate();
+  const [emailNotifications, setEmailNotifications] = useState(true);
 
   const getInitials = (email: string) => {
     return email.charAt(0).toUpperCase();
+  };
+
+  const handleLogout = async () => {
+    try {
+      await signOut();
+      localStorage.clear();
+      navigate("/auth");
+      toast.success("Logged out successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to logout");
+    }
   };
 
   return (
@@ -57,6 +76,40 @@ export default function Profile() {
                     {user?.id || "Not available"}
                   </p>
                 </div>
+              </div>
+
+              <Button
+                variant="destructive"
+                className="w-full mt-4"
+                onClick={handleLogout}
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Logout
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <Mail className="h-5 w-5 text-primary" />
+                <CardTitle>Notifications</CardTitle>
+              </div>
+              <CardDescription>Manage your notification preferences</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label htmlFor="email-notifications">Email Notifications</Label>
+                  <p className="text-sm text-muted-foreground">
+                    Receive updates when new research is available
+                  </p>
+                </div>
+                <Switch
+                  id="email-notifications"
+                  checked={emailNotifications}
+                  onCheckedChange={setEmailNotifications}
+                />
               </div>
             </CardContent>
           </Card>

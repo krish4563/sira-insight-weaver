@@ -1,14 +1,14 @@
-import { useState } from "react";
-import { Send } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Send, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { ChatMessage } from "@/components/ChatMessage";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { ResearchResult } from "@/components/ResearchResult";
-import { AutomationControls } from "@/components/AutomationControls";
 import { KnowledgeGraphPreview } from "@/components/KnowledgeGraphPreview";
 import { KnowledgeGraphModal } from "@/components/KnowledgeGraphModal";
+import { SchedulerModal } from "@/components/SchedulerModal";
 import { QuotaBar } from "@/components/QuotaBar";
 import { apiClient } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,7 +18,6 @@ import type { ResearchItem, KnowledgeGraph } from "@/lib/api";
 interface Message {
   role: "user" | "assistant";
   content: string;
-  showAutomation?: boolean;
   knowledgeGraph?: KnowledgeGraph;
   results?: ResearchItem[];
 }
@@ -30,10 +29,31 @@ export default function Research() {
   const [isLoading, setIsLoading] = useState(false);
   const [currentKG, setCurrentKG] = useState<KnowledgeGraph | null>(null);
   const [showKGModal, setShowKGModal] = useState(false);
+  const [showSchedulerModal, setShowSchedulerModal] = useState(false);
+  const [conversationId, setConversationId] = useState<string | null>(null);
+
+  // Create new conversation on component mount
+  useEffect(() => {
+    if (user) {
+      handleNewConversation();
+    }
+  }, [user]);
+
+  const handleNewConversation = async () => {
+    if (!user) return;
+    try {
+      const conv = await apiClient.createConversation(user.id, "New Research");
+      setConversationId(conv.id);
+      setMessages([]);
+      setCurrentKG(null);
+    } catch (error: any) {
+      console.error("Failed to create conversation:", error);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !user) return;
+    if (!input.trim() || isLoading || !user || !conversationId) return;
 
     const userMessage = input.trim();
     setInput("");
@@ -41,18 +61,26 @@ export default function Research() {
     setIsLoading(true);
 
     try {
+      // Save user message to conversation
+      await apiClient.addConversationMessage(conversationId, "user", userMessage);
+
+      // Run research
       const result = await apiClient.research(userMessage, user.id);
 
-      // Fetch updated KG
+      // Update KG
       const kgData = result.knowledge_graph;
       setCurrentKG(kgData);
+
+      const assistantMessage = `I found ${result.results.length} research results on "${result.topic}". Memory and knowledge graph have been updated with these insights.`;
+
+      // Save assistant message to conversation
+      await apiClient.addConversationMessage(conversationId, "assistant", assistantMessage);
 
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          content: `I found ${result.results.length} research results on "${result.topic}". Memory and knowledge graph have been updated with these insights.`,
-          showAutomation: true,
+          content: assistantMessage,
           knowledgeGraph: result.knowledge_graph,
           results: result.results,
         },
@@ -119,15 +147,6 @@ export default function Research() {
                   />
                 </div>
               )}
-
-              {message.showAutomation && user && (
-                <div className="ml-12">
-                  <AutomationControls
-                    topic={messages[idx - 1]?.content || ""}
-                    userId={user.id}
-                  />
-                </div>
-              )}
             </div>
           ))}
 
@@ -141,6 +160,14 @@ export default function Research() {
 
       <div className="border-t border-border p-4">
         <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon"
+            onClick={() => setShowSchedulerModal(true)}
+          >
+            <Plus className="h-4 w-4" />
+          </Button>
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
@@ -158,6 +185,11 @@ export default function Research() {
         isOpen={showKGModal}
         onClose={() => setShowKGModal(false)}
         data={currentKG}
+      />
+
+      <SchedulerModal
+        isOpen={showSchedulerModal}
+        onClose={() => setShowSchedulerModal(false)}
       />
     </div>
   );

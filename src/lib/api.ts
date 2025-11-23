@@ -68,6 +68,33 @@ export interface ScheduledJob {
   next_run?: string;
 }
 
+export interface Conversation {
+  id: string;
+  user_id: string;
+  topic: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  conversation_id: string;
+  role: "user" | "assistant";
+  content: string;
+  created_at: string;
+}
+
+export interface TimelineReport {
+  conversation_id: string;
+  topic: string;
+  timeline: Array<{
+    timestamp: string;
+    summary: string;
+    changes: string[];
+  }>;
+  generated_at: string;
+}
+
 class APIClient {
   private baseURL: string;
   private token: string | null = null;
@@ -154,6 +181,48 @@ class APIClient {
 
   async listScheduledJobs() {
     return this.request<{ jobs: ScheduledJob[] }>("/api/schedule/list");
+  }
+
+  // Conversations
+  async createConversation(userId: string, topic: string) {
+    return this.request<Conversation>("/api/conversations", {
+      method: "POST",
+      body: JSON.stringify({ user_id: userId, topic }),
+    });
+  }
+
+  async listConversations(userId: string) {
+    return this.request<Conversation[]>(`/api/conversations?user_id=${userId}`);
+  }
+
+  async getConversation(conversationId: string) {
+    return this.request<Conversation>(`/api/conversations/${conversationId}`);
+  }
+
+  async getConversationMessages(conversationId: string) {
+    return this.request<Message[]>(`/api/conversations/${conversationId}/messages`);
+  }
+
+  async addConversationMessage(conversationId: string, role: "user" | "assistant", content: string) {
+    return this.request<Message>(`/api/conversations/${conversationId}/messages`, {
+      method: "POST",
+      body: JSON.stringify({ role, content }),
+    });
+  }
+
+  // Reports
+  async getTimelineReport(jobId: string) {
+    return this.request<TimelineReport>(`/api/reports/${jobId}`);
+  }
+
+  async generateConversationReport(conversationId: string) {
+    return this.request<{ report_id: string }>(`/api/report/${conversationId}`, {
+      method: "POST",
+    });
+  }
+
+  async getScheduleHistory(userId: string) {
+    return this.request<any>(`/api/schedule/history?user_id=${userId}`);
   }
 }
 

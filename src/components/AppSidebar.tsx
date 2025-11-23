@@ -1,6 +1,6 @@
-import { FileText, User, Plus, Clock } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, User, Plus, Clock, MessageSquare } from "lucide-react";
 import { NavLink } from "react-router-dom";
-import { useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -15,6 +15,8 @@ import {
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
 import { SchedulerDrawer } from "@/components/SchedulerDrawer";
+import { apiClient, type Conversation } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 const staticItems = [
   { title: "New Research", url: "/", icon: Plus },
@@ -22,23 +24,59 @@ const staticItems = [
   { title: "Profile", url: "/profile", icon: User },
 ];
 
-// Mock chat history - in production, fetch from backend
-const chatHistory = {
-  Today: [
-    { id: "1", title: "AI Research Trends 2024", url: "/" },
-    { id: "2", title: "Quantum Computing Updates", url: "/" },
-  ],
-  Yesterday: [
-    { id: "3", title: "Climate Change Studies", url: "/" },
-  ],
-  "Previous 7 Days": [
-    { id: "4", title: "Machine Learning Papers", url: "/" },
-    { id: "5", title: "Biotech Innovations", url: "/" },
-  ],
-};
+function groupConversationsByTime(conversations: Conversation[]) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const sevenDaysAgo = new Date(today);
+  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+  return conversations.reduce(
+    (acc, conv) => {
+      const convDate = new Date(conv.created_at);
+      if (convDate >= today) {
+        acc.today.push(conv);
+      } else if (convDate >= yesterday) {
+        acc.yesterday.push(conv);
+      } else if (convDate >= sevenDaysAgo) {
+        acc["previous-7-days"].push(conv);
+      } else {
+        acc.older.push(conv);
+      }
+      return acc;
+    },
+    {
+      today: [] as Conversation[],
+      yesterday: [] as Conversation[],
+      "previous-7-days": [] as Conversation[],
+      older: [] as Conversation[],
+    }
+  );
+}
 
 export function AppSidebar() {
   const [showScheduler, setShowScheduler] = useState(false);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const { user } = useAuth();
+
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+    }
+  }, [user]);
+
+  const loadConversations = async () => {
+    if (!user) return;
+    try {
+      const data = await apiClient.listConversations(user.id);
+      setConversations(data);
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
+    }
+  };
+
+  const groupedChats = groupConversationsByTime(conversations);
 
   return (
     <>
@@ -92,27 +130,77 @@ export function AppSidebar() {
               </Button>
             </SidebarGroupLabel>
             <SidebarGroupContent>
-              {Object.entries(chatHistory).map(([period, chats]) => (
-                <div key={period} className="mb-4">
-                  <p className="text-xs text-muted-foreground px-3 py-2">
-                    {period}
-                  </p>
-                  <SidebarMenu>
-                    {chats.map((chat) => (
-                      <SidebarMenuItem key={chat.id}>
+              <SidebarMenu>
+                {groupedChats.today.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-xs text-muted-foreground">Today</div>
+                    {groupedChats.today.map((conv) => (
+                      <SidebarMenuItem key={conv.id}>
                         <SidebarMenuButton asChild>
-                          <NavLink
-                            to={chat.url}
-                            className="hover:bg-muted/50 text-sm truncate"
-                          >
-                            {chat.title}
+                          <NavLink to={`/chat/${conv.id}`}>
+                            <MessageSquare className="h-4 w-4" />
+                            <span className="truncate">{conv.topic}</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     ))}
-                  </SidebarMenu>
-                </div>
-              ))}
+                  </>
+                )}
+
+                {groupedChats.yesterday.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">
+                      Yesterday
+                    </div>
+                    {groupedChats.yesterday.map((conv) => (
+                      <SidebarMenuItem key={conv.id}>
+                        <SidebarMenuButton asChild>
+                          <NavLink to={`/chat/${conv.id}`}>
+                            <MessageSquare className="h-4 w-4" />
+                            <span className="truncate">{conv.topic}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </>
+                )}
+
+                {groupedChats["previous-7-days"].length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">
+                      Previous 7 Days
+                    </div>
+                    {groupedChats["previous-7-days"].map((conv) => (
+                      <SidebarMenuItem key={conv.id}>
+                        <SidebarMenuButton asChild>
+                          <NavLink to={`/chat/${conv.id}`}>
+                            <MessageSquare className="h-4 w-4" />
+                            <span className="truncate">{conv.topic}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </>
+                )}
+
+                {groupedChats.older.length > 0 && (
+                  <>
+                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">
+                      Older
+                    </div>
+                    {groupedChats.older.map((conv) => (
+                      <SidebarMenuItem key={conv.id}>
+                        <SidebarMenuButton asChild>
+                          <NavLink to={`/chat/${conv.id}`}>
+                            <MessageSquare className="h-4 w-4" />
+                            <span className="truncate">{conv.topic}</span>
+                          </NavLink>
+                        </SidebarMenuButton>
+                      </SidebarMenuItem>
+                    ))}
+                  </>
+                )}
+              </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
         </SidebarContent>

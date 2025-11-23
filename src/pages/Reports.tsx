@@ -1,40 +1,48 @@
-import { FileText, Download, Eye } from "lucide-react";
+import { useState, useEffect } from "react";
+import { FileText, Download } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "sonner";
-
-// Mock data - replace with actual API call
-const mockReports = [
-  {
-    id: "1",
-    title: "AI Research Trends Q1 2024",
-    date: "2024-03-15",
-    size: "2.4 MB",
-  },
-  {
-    id: "2",
-    title: "Quantum Computing Analysis",
-    date: "2024-03-10",
-    size: "1.8 MB",
-  },
-  {
-    id: "3",
-    title: "Climate Studies Overview",
-    date: "2024-03-05",
-    size: "3.1 MB",
-  },
-];
+import { apiClient, type Conversation } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function Reports() {
-  const handleDownload = (reportId: string) => {
-    toast.success("Download started");
-    // Implement actual download logic
+  const { user } = useAuth();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (user) {
+      loadConversations();
+    }
+  }, [user]);
+
+  const loadConversations = async () => {
+    if (!user) return;
+    try {
+      const data = await apiClient.listConversations(user.id);
+      setConversations(data);
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
+    }
   };
 
-  const handleView = (reportId: string) => {
-    toast.info("Opening PDF viewer");
-    // Implement actual view logic
+  const handleGenerateReport = async (conversationId: string) => {
+    setLoading(true);
+    try {
+      await apiClient.generateConversationReport(conversationId);
+      toast.success("Report generated successfully");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to generate report");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = async (conversationId: string) => {
+    toast.info("Preparing download...");
+    // Implement download logic using /api/reports/{job_id}
   };
 
   return (
@@ -48,17 +56,17 @@ export default function Reports() {
 
       <ScrollArea className="flex-1 p-6">
         <div className="max-w-4xl mx-auto space-y-4">
-          {mockReports.length === 0 ? (
+          {conversations.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground" />
-              <h2 className="text-xl font-semibold mb-2">No reports yet</h2>
+              <h2 className="text-xl font-semibold mb-2">No conversations yet</h2>
               <p className="text-muted-foreground">
-                Your generated PDF reports will appear here
+                Start a research conversation to generate reports
               </p>
             </div>
           ) : (
-            mockReports.map((report) => (
-              <Card key={report.id} className="glass-card">
+            conversations.map((conv) => (
+              <Card key={conv.id} className="glass-card">
                 <CardHeader>
                   <div className="flex items-start justify-between">
                     <div className="flex items-start gap-3">
@@ -66,9 +74,9 @@ export default function Reports() {
                         <FileText className="h-5 w-5 text-primary" />
                       </div>
                       <div>
-                        <CardTitle className="text-lg">{report.title}</CardTitle>
+                        <CardTitle className="text-lg">{conv.topic}</CardTitle>
                         <CardDescription>
-                          {new Date(report.date).toLocaleDateString()} · {report.size}
+                          {new Date(conv.created_at).toLocaleDateString()}
                         </CardDescription>
                       </div>
                     </div>
@@ -76,15 +84,16 @@ export default function Reports() {
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleView(report.id)}
+                        onClick={() => handleGenerateReport(conv.id)}
+                        disabled={loading}
                       >
-                        <Eye className="h-4 w-4 mr-1" />
-                        View
+                        <FileText className="h-4 w-4 mr-1" />
+                        Generate
                       </Button>
                       <Button
                         variant="outline"
                         size="sm"
-                        onClick={() => handleDownload(report.id)}
+                        onClick={() => handleDownload(conv.id)}
                       >
                         <Download className="h-4 w-4 mr-1" />
                         Download
