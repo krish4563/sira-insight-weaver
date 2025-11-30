@@ -1,3 +1,4 @@
+// src/components/AppSidebar.tsx
 import { useState, useEffect } from "react";
 import { FileText, User, Plus, Clock, MessageSquare } from "lucide-react";
 import { NavLink } from "react-router-dom";
@@ -67,24 +68,33 @@ export function AppSidebar() {
   }, [user]);
 
   const loadConversations = async () => {
-    if (!user) return;
-    try {
-      const data = await apiClient.listConversations(user.id);
-      if (Array.isArray(data)) {
-        // API already returned a flat list
-        setConversations(data);
-      } else if (data && typeof data === "object") {
-        // API returned grouped conversations (e.g. { today: [], yesterday: [], previous_7_days: [], older: [] })
-        // flatten them into a single Conversation[] for the state
-        const flattened = Object.values(data).flat() as Conversation[];
-        setConversations(flattened);
-      } else {
-        setConversations([]);
-      }
-    } catch (error) {
-      console.error("Failed to load conversations:", error);
+  if (!user) return;
+  try {
+    const data = await apiClient.listConversations(user.id);
+    
+    const flattened: Conversation[] = [];
+    
+    if (data && typeof data === "object") {
+      Object.values(data).forEach((group: any) => {
+        if (Array.isArray(group)) {
+          group.forEach((item: any) => {
+            flattened.push({
+              id: item.id,
+              user_id: user.id,
+              topic_title: item.title || "Untitled", // ✅ Backend returns "title"
+              created_at: item.created_at,
+              updated_at: item.created_at,
+            });
+          });
+        }
+      });
     }
-  };
+    
+    setConversations(flattened);
+  } catch (error) {
+    console.error("Failed to load conversations:", error);
+  }
+};
 
   const groupedChats = groupConversationsByTime(conversations);
 
@@ -149,7 +159,7 @@ export function AppSidebar() {
                         <SidebarMenuButton asChild>
                           <NavLink to={`/chat/${conv.id}`}>
                             <MessageSquare className="h-4 w-4" />
-                            <span className="truncate">{conv.topic}</span>
+                            <span className="truncate">{ conv.topic_title || "Untitled"}</span>
                           </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>

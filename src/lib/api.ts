@@ -1,4 +1,5 @@
 // Central API configuration for FastAPI backend
+// src/lib/api.ts
 const API_BASE = import.meta.env.VITE_API_BASE || "http://localhost:8000";
 
 export interface ResearchItem {
@@ -77,7 +78,7 @@ export interface ScheduledJob {
 export interface Conversation {
   id: string;
   user_id: string;
-  topic: string;
+  topic_title: string;  // ✅ Change from "topic" to "topic_title"
   created_at: string;
   updated_at: string;
 }
@@ -300,7 +301,8 @@ async renameConversation(conversationId: string, newTitle: string) {
     });
   }
 
-  async downloadConversationReport(conversationId: string): Promise<Blob> {
+  
+    async downloadConversationReport(conversationId: string): Promise<Blob> {
     const headers: HeadersInit = {};
 
     if (this.token) {
@@ -321,6 +323,7 @@ async renameConversation(conversationId: string, newTitle: string) {
 
     return await response.blob();
   }
+
 
 
   async getScheduleHistory(userId: string) {

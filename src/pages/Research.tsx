@@ -1,4 +1,6 @@
-import { useState, useEffect } from "react";
+// src/pages/Research.tsx
+import { useState, useEffect, useRef } from "react";
+import { useParams, useNavigate } from "react-router-dom";
 import { Send, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +26,9 @@ interface Message {
 
 export default function Research() {
   const { user } = useAuth();
+  const { conversationId: urlConversationId } = useParams();
+  const navigate = useNavigate();
+  
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -31,13 +36,37 @@ export default function Research() {
   const [showKGModal, setShowKGModal] = useState(false);
   const [showSchedulerModal, setShowSchedulerModal] = useState(false);
   const [conversationId, setConversationId] = useState<string | null>(null);
+  
+  // ✅ Prevent multiple loads
+  const isLoadingRef = useRef(false);
+  const hasInitialized = useRef(false);
 
-  // Create new conversation on component mount
+  // ✅ Load conversation from URL or create new one (ONLY ONCE)
   useEffect(() => {
-    if (user) {
-      handleNewConversation();
+  if (!user) return;
+  
+  const initializeConversation = async () => {
+    if (isLoadingRef.current) return;
+    isLoadingRef.current = true;
+
+    try {
+      if (urlConversationId) {
+        // Load existing conversation from URL
+        await loadConversation(urlConversationId);
+      } else {
+        // Create new conversation only if at root path and no conversation exists
+        if (window.location.pathname === "/" && !conversationId && !hasInitialized.current) {
+          hasInitialized.current = true;
+          await handleNewConversation();
+        }
+      }
+    } finally {
+      isLoadingRef.current = false;
     }
-  }, [user]);
+  };
+
+  initializeConversation();
+}, [user, urlConversationId]);
 
   const handleNewConversation = async () => {
     if (!user) return;
@@ -46,14 +75,61 @@ export default function Research() {
       setConversationId(conv.conversation_id);
       setMessages([]);
       setCurrentKG(null);
+      // ✅ Navigate to the new conversation URL
+      navigate(`/chat/${conv.conversation_id}`, { replace: true });
     } catch (error: any) {
       console.error("Failed to create conversation:", error);
+      toast.error("Failed to create conversation");
     }
   };
 
+  const loadConversation = async (convId: string) => {
+  if (!user) return;
+  try {
+    setIsLoading(true);
+    const data = await apiClient.getConversation(convId);
+    
+    // Convert DB messages to UI format
+    const loadedMessages: Message[] = data.messages.map((msg: any) => ({
+      role: msg.role === "agent" ? "assistant" : msg.role,
+      content: msg.content,
+      knowledgeGraph: msg.meta?.kg || undefined,
+      results: msg.meta?.results || undefined,
+    }));
+    
+    setMessages(loadedMessages); // ✅ Keep original order (user first, agent second)
+    setConversationId(convId);
+    
+    // ✅ Find last KG without mutating array
+    const lastKG = [...loadedMessages]  // Create a copy
+      .reverse()
+      .find(m => m.knowledgeGraph)?.knowledgeGraph;
+    if (lastKG) setCurrentKG(lastKG);
+    
+  } catch (error) {
+    console.error("Failed to load conversation:", error);
+    toast.error("Failed to load conversation");
+  } finally {
+    setIsLoading(false);
+  }
+};
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading || !user || !conversationId) return;
+    if (!input.trim() || isLoading || !user) return;
+
+    // ✅ Create conversation if none exists
+    let activeConvId = conversationId;
+    if (!activeConvId) {
+      try {
+        const conv = await apiClient.createConversation(user.id, input.slice(0, 50));
+        activeConvId = conv.conversation_id;
+        setConversationId(activeConvId);
+        navigate(`/chat/${activeConvId}`, { replace: true });
+      } catch (error) {
+        toast.error("Failed to create conversation");
+        return;
+      }
+    }
 
     const userMessage = input.trim();
     setInput("");
@@ -61,8 +137,8 @@ export default function Research() {
     setIsLoading(true);
 
     try {
-      // Save user message to conversation
-      await apiClient.sendMessage(conversationId, "user", userMessage);
+      // Save user message
+      await apiClient.sendMessage(activeConvId, "user", userMessage);
 
       // Run research
       const result = await apiClient.research(userMessage, user.id);
@@ -73,8 +149,16 @@ export default function Research() {
 
       const assistantMessage = `I found ${result.results.length} research results on "${result.topic}". Memory and knowledge graph have been updated with these insights.`;
 
-      // Save assistant message to conversation
-      await apiClient.sendMessage(conversationId, "agent", assistantMessage);
+      // ✅ Save assistant message WITH metadata
+      await apiClient.sendMessage(
+        activeConvId, 
+        "agent", 
+        assistantMessage,
+        {
+          kg: result.knowledge_graph,
+          results: result.results
+        }
+      );
 
       setMessages((prev) => [
         ...prev,
@@ -159,7 +243,7 @@ export default function Research() {
       </ScrollArea>
 
       <div className="border-t border-border p-4">
-        <form onSubmit={handleSubmit} className="max-w-4xl mx-auto flex gap-2">
+        <div className="max-w-4xl mx-auto flex gap-2">
           <Button
             type="button"
             variant="outline"
@@ -171,14 +255,23 @@ export default function Research() {
           <Input
             value={input}
             onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                handleSubmit(e as any);
+              }
+            }}
             placeholder="What would you like to research?"
             disabled={isLoading}
             className="flex-1"
           />
-          <Button type="submit" disabled={isLoading || !input.trim()}>
+          <Button 
+            onClick={(e) => handleSubmit(e as any)}
+            disabled={isLoading || !input.trim()}
+          >
             <Send className="h-4 w-4" />
           </Button>
-        </form>
+        </div>
       </div>
 
       <KnowledgeGraphModal
