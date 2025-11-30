@@ -15,6 +15,7 @@ import {
   SidebarFooter,
 } from "@/components/ui/sidebar";
 import { Button } from "@/components/ui/button";
+import { supabase } from "@/integrations/supabase/client"; 
 import { SchedulerDrawer } from "@/components/SchedulerDrawer";
 import { apiClient, type Conversation } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
@@ -61,42 +62,85 @@ export function AppSidebar() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const { user } = useAuth();
 
+  // 1. Initial Load
   useEffect(() => {
     if (user) {
       loadConversations();
     }
   }, [user]);
 
-  const loadConversations = async () => {
-  if (!user) return;
-  try {
-    const data = await apiClient.listConversations(user.id);
-    
-    const flattened: Conversation[] = [];
-    
-    if (data && typeof data === "object") {
-      Object.values(data).forEach((group: any) => {
-        if (Array.isArray(group)) {
-          group.forEach((item: any) => {
-            flattened.push({
-              id: item.id,
-              user_id: user.id,
-              topic_title: item.title || "Untitled", // ✅ Backend returns "title"
-              created_at: item.created_at,
-              updated_at: item.created_at,
-            });
-          });
+  // 2. Real-time Listener (With Timeout Fix)
+  useEffect(() => {
+    if (!user) return;
+
+    const channel = supabase
+      .channel("sidebar-updates")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "conversations",
+          filter: `user_id=eq.${user.id}`, // Filter is safe if RLS is correct, otherwise remove
+        },
+        () => {
+          console.log("🔔 Realtime Update Received! Refreshing list...");
+          
+          // ✅ TIMEOUT ADDED: Waits 1.5s for DB to finish saving before fetching
+          setTimeout(() => {
+            loadConversations();
+          }, 1500);
         }
-      });
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [user]);
+
+  const loadConversations = async () => {
+    if (!user) return;
+    try {
+      const data = await apiClient.listConversations(user.id);
+      
+      const flattened: Conversation[] = [];
+      
+      if (data && typeof data === "object") {
+        Object.values(data).forEach((group: any) => {
+          if (Array.isArray(group)) {
+            group.forEach((item: any) => {
+              flattened.push({
+                id: item.id,
+                user_id: user.id,
+                topic_title: item.title || "Untitled",
+                created_at: item.created_at,
+                updated_at: item.created_at,
+              });
+            });
+          }
+        });
+      }
+      
+      setConversations(flattened);
+    } catch (error) {
+      console.error("Failed to load conversations:", error);
     }
-    
-    setConversations(flattened);
-  } catch (error) {
-    console.error("Failed to load conversations:", error);
-  }
-};
+  };
 
   const groupedChats = groupConversationsByTime(conversations);
+
+  // Helper to render links
+  const renderLink = (conv: Conversation) => (
+    <SidebarMenuItem key={conv.id}>
+      <SidebarMenuButton asChild>
+        <NavLink to={`/chat/${conv.id}`}>
+          <MessageSquare className="h-4 w-4" />
+          <span className="truncate">{conv.topic_title || "Untitled"}</span>
+        </NavLink>
+      </SidebarMenuButton>
+    </SidebarMenuItem>
+  );
 
   return (
     <>
@@ -154,70 +198,28 @@ export function AppSidebar() {
                 {groupedChats.today.length > 0 && (
                   <>
                     <div className="px-2 py-1 text-xs text-muted-foreground">Today</div>
-                    {groupedChats.today.map((conv) => (
-                      <SidebarMenuItem key={conv.id}>
-                        <SidebarMenuButton asChild>
-                          <NavLink to={`/chat/${conv.id}`}>
-                            <MessageSquare className="h-4 w-4" />
-                            <span className="truncate">{ conv.topic_title || "Untitled"}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                    {groupedChats.today.map(renderLink)}
                   </>
                 )}
 
                 {groupedChats.yesterday.length > 0 && (
                   <>
-                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">
-                      Yesterday
-                    </div>
-                    {groupedChats.yesterday.map((conv) => (
-                      <SidebarMenuItem key={conv.id}>
-                        <SidebarMenuButton asChild>
-                          <NavLink to={`/chat/${conv.id}`}>
-                            <MessageSquare className="h-4 w-4" />
-                            <span className="truncate">{conv.topic}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">Yesterday</div>
+                    {groupedChats.yesterday.map(renderLink)}
                   </>
                 )}
 
                 {groupedChats["previous-7-days"].length > 0 && (
                   <>
-                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">
-                      Previous 7 Days
-                    </div>
-                    {groupedChats["previous-7-days"].map((conv) => (
-                      <SidebarMenuItem key={conv.id}>
-                        <SidebarMenuButton asChild>
-                          <NavLink to={`/chat/${conv.id}`}>
-                            <MessageSquare className="h-4 w-4" />
-                            <span className="truncate">{conv.topic}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">Previous 7 Days</div>
+                    {groupedChats["previous-7-days"].map(renderLink)}
                   </>
                 )}
 
                 {groupedChats.older.length > 0 && (
                   <>
-                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">
-                      Older
-                    </div>
-                    {groupedChats.older.map((conv) => (
-                      <SidebarMenuItem key={conv.id}>
-                        <SidebarMenuButton asChild>
-                          <NavLink to={`/chat/${conv.id}`}>
-                            <MessageSquare className="h-4 w-4" />
-                            <span className="truncate">{conv.topic}</span>
-                          </NavLink>
-                        </SidebarMenuButton>
-                      </SidebarMenuItem>
-                    ))}
+                    <div className="px-2 py-1 text-xs text-muted-foreground mt-2">Older</div>
+                    {groupedChats.older.map(renderLink)}
                   </>
                 )}
               </SidebarMenu>

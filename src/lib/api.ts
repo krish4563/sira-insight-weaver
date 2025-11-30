@@ -237,7 +237,7 @@ class APIClient {
    Conversations API (FIXED)
 --------------------------------*/
 
-async createConversation(userId: string, topicTitle: string) {
+async createConversation(userId: string, topicTitle: string = "New Chat") {
   return this.request<{ conversation_id: string }>(
     "/api/conversations/start",
     {

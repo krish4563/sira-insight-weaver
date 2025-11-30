@@ -43,35 +43,47 @@ export default function Research() {
 
   // ✅ Load conversation from URL or create new one (ONLY ONCE)
   useEffect(() => {
-  if (!user) return;
+    if (!user) return;
   
-  const initializeConversation = async () => {
-    if (isLoadingRef.current) return;
-    isLoadingRef.current = true;
+    const initializeConversation = async () => {
+      // Avoid overlapping requests
+      if (isLoadingRef.current) return;
+      isLoadingRef.current = true;
 
-    try {
-      if (urlConversationId) {
-        // Load existing conversation from URL
-        await loadConversation(urlConversationId);
-      } else {
-        // Create new conversation only if at root path and no conversation exists
-        if (window.location.pathname === "/" && !conversationId && !hasInitialized.current) {
-          hasInitialized.current = true;
-          await handleNewConversation();
+      try {
+        if (urlConversationId) {
+          // 1. Case: We are visiting a specific chat URL (e.g. /chat/123)
+          // Only load if we aren't already looking at this conversation
+          if (conversationId !== urlConversationId) {
+             await loadConversation(urlConversationId);
+          }
+        } else {
+          // 2. Case: We are at the Root URL "/" (New Research clicked)
+          
+          // ⚠️ FIX: Explicitly clear the old state immediately
+          setMessages([]);
+          setCurrentKG(null);
+          setConversationId(null);
+
+          // Create new conversation only if at root path
+          if (window.location.pathname === "/" && !hasInitialized.current) {
+            hasInitialized.current = true;
+            await handleNewConversation();
+          }
         }
+      } finally {
+        isLoadingRef.current = false;
       }
-    } finally {
-      isLoadingRef.current = false;
-    }
-  };
+    };
 
-  initializeConversation();
-}, [user, urlConversationId]);
+    initializeConversation();
+  }, [user, urlConversationId]);
 
   const handleNewConversation = async () => {
     if (!user) return;
     try {
-      const conv = await apiClient.createConversation(user.id, "New Research");
+      // Send "New Chat" so backend knows to auto-title it
+      const conv = await apiClient.createConversation(user.id, "New Chat");
       setConversationId(conv.conversation_id);
       setMessages([]);
       setCurrentKG(null);
@@ -84,63 +96,77 @@ export default function Research() {
   };
 
   const loadConversation = async (convId: string) => {
-  if (!user) return;
-  try {
-    setIsLoading(true);
-    const data = await apiClient.getConversation(convId);
-    
-    // Convert DB messages to UI format
-    const loadedMessages: Message[] = data.messages.map((msg: any) => ({
-      role: msg.role === "agent" ? "assistant" : msg.role,
-      content: msg.content,
-      knowledgeGraph: msg.meta?.kg || undefined,
-      results: msg.meta?.results || undefined,
-    }));
-    
-    setMessages(loadedMessages); // ✅ Keep original order (user first, agent second)
-    setConversationId(convId);
-    
-    // ✅ Find last KG without mutating array
-    const lastKG = [...loadedMessages]  // Create a copy
-      .reverse()
-      .find(m => m.knowledgeGraph)?.knowledgeGraph;
-    if (lastKG) setCurrentKG(lastKG);
-    
-  } catch (error) {
-    console.error("Failed to load conversation:", error);
-    toast.error("Failed to load conversation");
-  } finally {
-    setIsLoading(false);
-  }
-};
+    if (!user) return;
+    try {
+      setIsLoading(true);
+      const data = await apiClient.getConversation(convId);
+      
+      // Convert DB messages to UI format
+      const loadedMessages: Message[] = data.messages.map((msg: any) => ({
+        role: msg.role === "agent" ? "assistant" : msg.role,
+        content: msg.content,
+        knowledgeGraph: msg.meta?.kg || undefined,
+        results: msg.meta?.results || undefined,
+      }));
+      
+      setMessages(loadedMessages); // ✅ Keep original order (user first, agent second)
+      setConversationId(convId);
+      
+      // ✅ Find last KG without mutating array
+      const lastKG = [...loadedMessages]  // Create a copy
+        .reverse()
+        .find(m => m.knowledgeGraph)?.knowledgeGraph;
+      if (lastKG) setCurrentKG(lastKG);
+      
+    } catch (error) {
+      console.error("Failed to load conversation:", error);
+      toast.error("Failed to load conversation");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isLoading || !user) return;
 
-    // ✅ Create conversation if none exists
+    const userMessage = input.trim();
+    setInput("");
+    setIsLoading(true);
+
+    // ✅ Logic to handle New vs Existing chat to prevent double messages
     let activeConvId = conversationId;
+    let isNewChat = false;
+
     if (!activeConvId) {
       try {
-        const conv = await apiClient.createConversation(user.id, input.slice(0, 50));
+        isNewChat = true;
+        // 1. Create with "New Chat" title so backend triggers auto-title
+        const conv = await apiClient.createConversation(user.id, "New Chat");
         activeConvId = conv.conversation_id;
         setConversationId(activeConvId);
+        
+        // 2. Navigate immediately. logic: The URL change triggers useEffect -> loadConversation
         navigate(`/chat/${activeConvId}`, { replace: true });
       } catch (error) {
         toast.error("Failed to create conversation");
+        setIsLoading(false);
         return;
       }
     }
 
-    const userMessage = input.trim();
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
-    setIsLoading(true);
+    // 3. OPTIMISTIC UPDATE: Only if it's NOT a new chat.
+    // If it IS a new chat, we rely on loadConversation() to fetch the message after we send it,
+    // to avoid it appearing twice (once from here, once from DB load).
+    if (!isNewChat) {
+       setMessages((prev) => [...prev, { role: "user", content: userMessage }]);
+    }
 
     try {
-      // Save user message
+      // 4. Save user message to Backend
       await apiClient.sendMessage(activeConvId, "user", userMessage);
 
-      // Run research
+      // 5. Run research
       const result = await apiClient.research(userMessage, user.id);
 
       // Update KG
@@ -149,7 +175,7 @@ export default function Research() {
 
       const assistantMessage = `I found ${result.results.length} research results on "${result.topic}". Memory and knowledge graph have been updated with these insights.`;
 
-      // ✅ Save assistant message WITH metadata
+      // 6. Save assistant message WITH metadata
       await apiClient.sendMessage(
         activeConvId, 
         "agent", 
@@ -160,15 +186,21 @@ export default function Research() {
         }
       );
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          role: "assistant",
-          content: assistantMessage,
-          knowledgeGraph: result.knowledge_graph,
-          results: result.results,
-        },
-      ]);
+      // 7. Update UI with Agent response
+      if (!isNewChat) {
+          setMessages((prev) => [
+            ...prev,
+            {
+              role: "assistant",
+              content: assistantMessage,
+              knowledgeGraph: result.knowledge_graph,
+              results: result.results,
+            },
+          ]);
+      } else {
+          // If it was a new chat, explicitly reload to make sure everything is synced
+          await loadConversation(activeConvId);
+      }
 
       toast.success("Research complete!");
     } catch (error: any) {
@@ -179,8 +211,7 @@ export default function Research() {
         ...prev,
         {
           role: "assistant",
-          content:
-            "I encountered an error while researching. Please make sure the backend API is running and try again.",
+          content: "I encountered an error while researching. Please check the backend connection.",
         },
       ]);
     } finally {
