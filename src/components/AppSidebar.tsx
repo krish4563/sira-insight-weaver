@@ -33,8 +33,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client"; 
 import { SchedulerDrawer } from "@/components/SchedulerDrawer";
 import { apiClient, type Conversation } from "@/lib/api";
@@ -57,7 +57,11 @@ function groupConversationsByTime(conversations: Conversation[]) {
 
   return conversations.reduce(
     (acc, conv) => {
-      const convDate = new Date(conv.created_at);
+      // ✅ FIX: Use updated_at if available, fallback to created_at
+      // This ensures recently active chats jump to "Today"
+      const dateStr = conv.updated_at || conv.created_at;
+      const convDate = new Date(dateStr);
+
       if (convDate >= today) {
         acc.today.push(conv);
       } else if (convDate >= yesterday) {
@@ -82,23 +86,20 @@ export function AppSidebar() {
   const [showScheduler, setShowScheduler] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   
-  // ✅ State for Actions
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [deleteId, setDeleteId] = useState<string | null>(null); // For Modal
+  const [deleteId, setDeleteId] = useState<string | null>(null); 
 
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // 1. Initial Load
   useEffect(() => {
     if (user) {
       loadConversations();
     }
   }, [user]);
 
-  // 2. Real-time Listener
   useEffect(() => {
     if (!user) return;
 
@@ -113,7 +114,6 @@ export function AppSidebar() {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
-          // ✅ Prevent refresh if user is currently renaming (typing)
           if (!editingId) {
              setTimeout(() => {
                loadConversations();
@@ -126,7 +126,7 @@ export function AppSidebar() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, editingId]); // Depend on editingId so we pause updates while editing
+  }, [user, editingId]); 
 
   const loadConversations = async () => {
     if (!user) return;
@@ -144,15 +144,20 @@ export function AppSidebar() {
                 user_id: user.id,
                 topic_title: item.title || item.topic_title || "Untitled",
                 created_at: item.created_at,
-                updated_at: item.created_at,
+                // ✅ FIX: Correctly map updated_at from backend
+                updated_at: item.updated_at || item.created_at, 
               });
             });
           }
         });
       }
       
-      // Sort: Newest first
-      flattened.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      // Sort: Newest activity first
+      flattened.sort((a, b) => {
+        const dateA = new Date(a.updated_at || a.created_at).getTime();
+        const dateB = new Date(b.updated_at || b.created_at).getTime();
+        return dateB - dateA;
+      });
       
       setConversations(flattened);
     } catch (error) {
@@ -166,20 +171,18 @@ export function AppSidebar() {
     if (!deleteId) return;
     try {
       const idToDelete = deleteId;
-      setDeleteId(null); // Close modal
+      setDeleteId(null); 
 
-      // Optimistic update
       setConversations(prev => prev.filter(c => c.id !== idToDelete));
       await apiClient.deleteConversation(idToDelete);
       
-      // If we deleted the active chat, go to home
       if (location.pathname.includes(idToDelete)) {
         navigate("/");
       }
       toast.success("Conversation deleted");
     } catch (error) {
       toast.error("Failed to delete");
-      loadConversations(); // Revert
+      loadConversations(); 
     }
   };
 
@@ -196,9 +199,8 @@ export function AppSidebar() {
     try {
       const id = editingId;
       const title = editTitle;
-      setEditingId(null); // Close Input
+      setEditingId(null); 
       
-      // Optimistic update
       setConversations(prev => prev.map(c => c.id === id ? { ...c, topic_title: title } : c));
       
       await apiClient.renameConversation(id, title);
@@ -210,7 +212,6 @@ export function AppSidebar() {
 
   const groupedChats = groupConversationsByTime(conversations);
 
-  // --- RENDER ITEM HELPER ---
   const renderItem = (conv: Conversation) => {
     const isEditing = editingId === conv.id;
 
@@ -221,8 +222,8 @@ export function AppSidebar() {
             <Input 
               value={editTitle} 
               onChange={(e) => setEditTitle(e.target.value)}
-              onBlur={saveTitle} // Save when clicking away
-              onKeyDown={(e) => e.key === "Enter" && saveTitle()} // Save on Enter
+              onBlur={saveTitle} 
+              onKeyDown={(e) => e.key === "Enter" && saveTitle()} 
               autoFocus
               className="h-8 text-sm bg-background"
             />
@@ -236,7 +237,6 @@ export function AppSidebar() {
               </NavLink>
             </SidebarMenuButton>
             
-            {/* ✅ Dropdown for Edit/Delete */}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <SidebarMenuAction showOnHover>
@@ -364,7 +364,6 @@ export function AppSidebar() {
         onClose={() => setShowScheduler(false)}
       />
 
-      {/* ✅ DELETE CONFIRMATION DIALOG */}
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
