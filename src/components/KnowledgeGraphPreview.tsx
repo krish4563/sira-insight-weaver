@@ -1,3 +1,4 @@
+// /src/components/KnowledgeGraphPreview.tsx
 import { Network, ExternalLink } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +13,19 @@ export function KnowledgeGraphPreview({
   data,
   onViewFull,
 }: KnowledgeGraphPreviewProps) {
+  // ✅ Safety checks
+  if (!data || !data.counts) {
+    return null;
+  }
+
+  const nodeCount = data.counts.nodes || 0;
+  const edgeCount = data.counts.edges || 0;
+
+  // Don't show if empty
+  if (nodeCount === 0 && edgeCount === 0) {
+    return null;
+  }
+
   return (
     <Card className="glass-card">
       <CardContent className="p-4">
@@ -23,7 +37,7 @@ export function KnowledgeGraphPreview({
             <div>
               <p className="text-sm font-medium">Knowledge Graph Updated</p>
               <p className="text-xs text-muted-foreground">
-                {data.counts.nodes} entities · {data.counts.edges} connections
+                {nodeCount} entities · {edgeCount} connections
               </p>
             </div>
           </div>

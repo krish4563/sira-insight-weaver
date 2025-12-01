@@ -145,17 +145,21 @@ class APIClient {
     return this.request<HealthStatus>("/api/pipeline/health");
   }
 
- async research(topic: string, userId: string) {
-  const params = new URLSearchParams({
-    topic,
-    user_id: userId
-  });
+async research(topic: string, userId: string, conversationId?: string, deepResearch: boolean = false) {
+    const params = new URLSearchParams({
+      topic,
+      user_id: userId,
+      deep_research: String(deepResearch) // ✅ Send as string "true"/"false"
+    });
+    
+    if (conversationId) {
+      params.append("conversation_id", conversationId);
+    }
 
-  return this.request<PipelineResult>(
-    `/api/pipeline/research?${params.toString()}`
-  );
-}
-
+    return this.request<PipelineResult>(
+      `/api/pipeline/research?${params.toString()}`
+    );
+  }
 
 
     async upsertMemory(userId: string, doc: MemoryDoc) {
