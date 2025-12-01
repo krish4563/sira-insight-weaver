@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { 
   FileText, User, Plus, Clock, MessageSquare, 
-  MoreHorizontal, Trash2, Pencil 
+  MoreHorizontal, Trash2, Pencil, Search 
 } from "lucide-react";
 import { NavLink, useNavigate, useLocation } from "react-router-dom";
 import {
@@ -57,11 +57,7 @@ function groupConversationsByTime(conversations: Conversation[]) {
 
   return conversations.reduce(
     (acc, conv) => {
-      // ✅ FIX: Use updated_at if available, fallback to created_at
-      // This ensures recently active chats jump to "Today"
-      const dateStr = conv.updated_at || conv.created_at;
-      const convDate = new Date(dateStr);
-
+      const convDate = new Date(conv.created_at);
       if (convDate >= today) {
         acc.today.push(conv);
       } else if (convDate >= yesterday) {
@@ -86,20 +82,26 @@ export function AppSidebar() {
   const [showScheduler, setShowScheduler] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   
+  // ✅ State for Actions
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState("");
-  const [deleteId, setDeleteId] = useState<string | null>(null); 
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  
+  // ✅ State for Search
+  const [searchQuery, setSearchQuery] = useState("");
 
   const { user } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
 
+  // 1. Initial Load
   useEffect(() => {
     if (user) {
       loadConversations();
     }
   }, [user]);
 
+  // 2. Real-time Listener
   useEffect(() => {
     if (!user) return;
 
@@ -114,6 +116,7 @@ export function AppSidebar() {
           filter: `user_id=eq.${user.id}`,
         },
         () => {
+          // Prevent refresh if user is currently renaming
           if (!editingId) {
              setTimeout(() => {
                loadConversations();
@@ -126,7 +129,7 @@ export function AppSidebar() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, editingId]); 
+  }, [user, editingId]);
 
   const loadConversations = async () => {
     if (!user) return;
@@ -144,21 +147,14 @@ export function AppSidebar() {
                 user_id: user.id,
                 topic_title: item.title || item.topic_title || "Untitled",
                 created_at: item.created_at,
-                // ✅ FIX: Correctly map updated_at from backend
-                updated_at: item.updated_at || item.created_at, 
+                updated_at: item.created_at,
               });
             });
           }
         });
       }
       
-      // Sort: Newest activity first
-      flattened.sort((a, b) => {
-        const dateA = new Date(a.updated_at || a.created_at).getTime();
-        const dateB = new Date(b.updated_at || b.created_at).getTime();
-        return dateB - dateA;
-      });
-      
+      flattened.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
       setConversations(flattened);
     } catch (error) {
       console.error("Failed to load conversations:", error);
@@ -210,8 +206,14 @@ export function AppSidebar() {
     }
   };
 
-  const groupedChats = groupConversationsByTime(conversations);
+  // ✅ FILTER LOGIC: Filter by search query BEFORE grouping
+  const filteredConversations = conversations.filter((conv) => 
+    (conv.topic_title || "Untitled").toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
+  const groupedChats = groupConversationsByTime(filteredConversations);
+
+  // --- RENDER ITEM HELPER ---
   const renderItem = (conv: Conversation) => {
     const isEditing = editingId === conv.id;
 
@@ -312,8 +314,29 @@ export function AppSidebar() {
                 <Clock className="h-3 w-3" />
               </Button>
             </SidebarGroupLabel>
+            
             <SidebarGroupContent>
+              {/* ✅ Search Input Bar */}
+              <div className="px-2 pb-2">
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input 
+                    placeholder="Search chats..." 
+                    className="pl-8 h-8 text-xs bg-background/50" 
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                  />
+                </div>
+              </div>
+
               <SidebarMenu>
+                {/* Empty State */}
+                {Object.values(groupedChats).every(group => group.length === 0) && (
+                  <div className="px-4 py-4 text-xs text-muted-foreground text-center">
+                    No conversations found
+                  </div>
+                )}
+
                 {groupedChats.today.length > 0 && (
                   <>
                     <div className="px-2 py-1 text-xs text-muted-foreground">Today</div>
